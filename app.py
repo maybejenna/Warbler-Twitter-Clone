@@ -1,10 +1,10 @@
 import os
 
-from flask import Flask, render_template, request, flash, redirect, session, g
+from flask import Flask, render_template, request, flash, redirect, session, g, url_for
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
+from forms import UserAddForm, LoginForm, MessageForm, ProfileForm
 from models import db, connect_db, User, Message
 
 CURR_USER_KEY = "curr_user"
@@ -210,9 +210,24 @@ def stop_following(follow_id):
 @app.route('/users/profile', methods=["GET", "POST"])
 def profile():
     """Update profile for current user."""
+    if not g.user:
+        flash("Access unauthorized.", "error")
+        return redirect(url_for('login'))
 
-    # IMPLEMENT THIS
+    form = ProfileForm(obj=g.user)  # Pre-populate form if GET request
 
+    if request.method == 'POST' and form.validate_on_submit():
+        g.user.username = form.username.data
+        g.user.email = form.email.data
+        g.user.image_url = form.image_url.data or g.user.image_url
+        g.user.header_image_url = form.header_image_url.data or g.user.header_image_url
+        g.user.bio = form.bio.data
+
+        db.session.commit()
+        flash('Your profile has been updated.', 'success')
+        return redirect(url_for('users_show', user_id=g.user.id))
+
+    return render_template('users/edit.html', form=form)
 
 @app.route('/users/delete', methods=["POST"])
 def delete_user():
@@ -285,24 +300,19 @@ def messages_destroy(message_id):
 
 @app.route('/')
 def homepage():
-    """Show homepage:
-
-    - anon users: no messages
-    - logged in: 100 most recent messages of followed_users
-    """
-
-    if g.user:
-        messages = (Message
-                    .query
-                    .order_by(Message.timestamp.desc())
-                    .limit(100)
-                    .all())
-
-        return render_template('home.html', messages=messages)
-
-    else:
+    """Show homepage: only messages from followed users and the user themself."""
+    if not g.user:
         return render_template('home-anon.html')
 
+    # Get IDs of followed users plus the user's own ID
+    followed_ids = [user.id for user in g.user.following] + [g.user.id]
+
+    # Query for messages where the user_id is in followed_ids
+    messages = Message.query.filter(Message.user_id.in_(followed_ids))\
+                    .order_by(Message.timestamp.desc())\
+                    .limit(100).all()
+
+    return render_template('home.html', messages=messages)
 
 ##############################################################################
 # Turn off all caching in Flask
