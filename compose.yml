@@ -5,9 +5,10 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "5000:5000"
+      - "9001:9001"
     volumes:
       - .:/code
     environment:
-      FLASK_ENV: development
-    command: flask run --host=0.0.0.0 --port=5000
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://jennacooper@host.docker.internal:5432/warbler
+    command: flask run --host=0.0.0.0 --port=9001

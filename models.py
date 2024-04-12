@@ -201,10 +201,8 @@ class Message(db.Model):
 
 
 def connect_db(app):
-    """Connect this database to provided Flask app.
-
-    You should call this in your Flask app.
-    """
-
+    """Connect this database to provided Flask app and create tables if they don't exist."""
     db.app = app
     db.init_app(app)
+    with app.app_context():
+        db.create_all() 
